@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PulseAi - Logic Analyzer AI Analysis</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <h1>PulseAi</h1>
+                <p class="subtitle">AI-Powered Logic Analyzer Protocol Analysis</p>
+            </div>
+        </div>
+    </header>
+    
+    <div class="container">
+        <div class="main-content">
+            <section class="upload-section">
+                <h2 class="section-title">Upload Logic Analyzer CSV</h2>
+                
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <div class="file-upload-area" id="dropArea">
+                        <div class="upload-icon">📊</div>
+                        <h3>Drag & Drop your CSV file here</h3>
+                        <p>Supports Saleae Logic, PulseView, and other analyzer formats</p>
+                        <button type="button" class="btn btn-accent" id="browseBtn">Browse Files</button>
+                        <input type="file" id="fileInput" class="file-input" accept=".csv" name="csvFile">
+                    </div>
+                    
+                    <div class="file-info" id="fileInfo">
+                        <p><strong>Selected file:</strong> <span id="fileName">-</span></p>
+                        <p><strong>File size:</strong> <span id="fileSize">-</span></p>
+                        <p><strong>Format:</strong> <span id="fileFormat">CSV</span></p>
+                    </div>
+                    
+                    <button type="submit" class="btn" id="analyzeBtn" disabled>
+                        <span class="btn-text">Analyze with PulseAi</span>
+                        <span class="btn-loading" style="display: none;">Analyzing...</span>
+                    </button>
+                </form>
+                
+                <div class="loading-container" id="loadingContainer">
+                    <div class="loading-spinner"></div>
+                    <h3>PulseAi Analysis in Progress</h3>
+                    <p>Analyzing protocols, devices, and signal characteristics...</p>
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                </div>
+            </section>
+            
+            <section class="result-section">
+                <h2 class="section-title">Analysis Results</h2>
+                <div class="result-container" id="resultContainer">
+                    <div class="result-header">
+                        <h3 id="resultTitle">PulseAi Analysis Report</h3>
+                        <div class="result-actions">
+                            <button class="btn btn-secondary" id="copyBtn">Copy Report</button>
+                            <button class="btn btn-secondary" id="downloadBtn">Download</button>
+                        </div>
+                    </div>
+                    <div class="result-content" id="resultContent">
+                        <!-- Results will appear here -->
+                    </div>
+                </div>
+                <div id="noResultsMessage">
+                    <div class="empty-state">
+                        <div class="empty-icon">🔍</div>
+                        <h3>No Analysis Yet</h3>
+                        <p>Upload a logic analyzer CSV file to get started with PulseAi analysis.</p>
+                    </div>
+                </div>
+            </section>
+        </div>
+        
+        <div class="features">
+            <div class="feature-card">
+                <div class="feature-icon">🔬</div>
+                <h3>Protocol Detection</h3>
+                <p>Automatically identify I2C, SPI, UART, CAN, 1-Wire, and other communication protocols from your logic analyzer data.</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">💡</div>
+                <h3>Device Intelligence</h3>
+                <p>Discover communicating devices, master/slave relationships, and device types based on protocol patterns.</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">⚡</div>
+                <h3>Pin Mapping</h3>
+                <p>Get intelligent pin naming and function identification based on signal behavior and protocol analysis.</p>
+            </div>
+        </div>
+
+        <div class="info-section">
+            <h3>How PulseAi Works</h3>
+            <div class="steps">
+                <div class="step">
+                    <span class="step-number">1</span>
+                    <h4>Upload CSV</h4>
+                    <p>Export your logic analyzer data as CSV from Saleae Logic, Sigrok, or other tools</p>
+                </div>
+                <div class="step">
+                    <span class="step-number">2</span>
+                    <h4>AI Analysis</h4>
+                    <p>PulseAi analyzes timing, patterns, and protocols using DeepSeek AI</p>
+                </div>
+                <div class="step">
+                    <span class="step-number">3</span>
+                    <h4>Get Insights</h4>
+                    <p>Receive detailed protocol identification, device analysis, and pin mapping</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <footer>
+        <div class="container">
+            <p>PulseAi &copy; 2024 | AI-Powered Logic Analyzer Analysis | Powered by DeepSeek AI</p>
+            <p class="footer-info">For support and API key setup, refer to the documentation</p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
