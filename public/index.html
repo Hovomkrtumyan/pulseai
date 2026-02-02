@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PulseAi - Logic Analyzer AI Analysis</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
     <header>
@@ -12,6 +13,17 @@
             <div class="header-content">
                 <h1>PulseAi</h1>
                 <p class="subtitle">AI-Powered Logic Analyzer Protocol Analysis</p>
+            </div>
+            <div class="auth-nav">
+                <button id="loginBtn" class="btn btn-secondary">
+                    <i class="fas fa-sign-in-alt"></i> Sign In
+                </button>
+                <button id="userProfileBtn" class="btn btn-secondary" style="display: none;">
+                    <i class="fas fa-user"></i> <span id="userName"></span>
+                </button>
+                <button id="logoutBtn" class="btn btn-secondary" style="display: none;">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
             </div>
         </div>
     </header>
@@ -25,7 +37,7 @@
                     <div class="file-upload-area" id="dropArea">
                         <div class="upload-icon">📊</div>
                         <h3>Drag & Drop your CSV file here</h3>
-                        <p>Supports Saleae Logic, PulseView, and other analyzer formats</p>
+                        <p>Supports Saleae Logic, PulseView, Digilent, and other analyzer formats</p>
                         <button type="button" class="btn btn-accent" id="browseBtn">Browse Files</button>
                         <input type="file" id="fileInput" class="file-input" accept=".csv" name="csvFile">
                     </div>

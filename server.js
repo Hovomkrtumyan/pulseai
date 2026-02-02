@@ -3,10 +3,14 @@ const multer = require('multer');
 const axios = require('axios');
 const path = require('path');
 const mongoose = require('mongoose');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 // MongoDB Atlas Connection
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -25,14 +29,42 @@ const analysisSchema = new mongoose.Schema({
   fileSize: Number,
   analysisResult: String,
   source: String,
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   timestamp: { type: Date, default: Date.now }
 });
 const Analysis = mongoose.model('Analysis', analysisSchema);
+
+// User Schema
+const userSchema = new mongoose.Schema({
+  name: String,
+  email: { type: String, unique: true },
+  password: String,
+  createdAt: { type: Date, default: Date.now }
+});
+const User = mongoose.model('User', userSchema);
 
 // Middleware
 app.use(express.json());
 app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
+
+// Authentication Middleware
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  
+  if (!token) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+  
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ error: 'Invalid token' });
+    }
+    req.user = user;
+    next();
+  });
+};
 
 // Configure multer (memory storage for production)
 const storage = multer.memoryStorage();
@@ -177,41 +209,141 @@ async function callDeepSeekAPI(prompt, timeout = 20000) {
   }
 }
 
+// Enhanced CSV Analysis with Format Detection
+function detectCSVFormat(headers) {
+  const headerStr = headers.join(',').toLowerCase();
+  
+  if (headerStr.includes('time') && headerStr.includes('channel')) {
+    return { format: 'Saleae Logic', type: 'standard' };
+  }
+  if (headerStr.includes('sample') || headerStr.includes('logic')) {
+    return { format: 'PulseView/Sigrok', type: 'open_source' };
+  }
+  if (headerStr.includes('timestamp') || headerStr.includes('state')) {
+    return { format: 'Digilent/WaveForms', type: 'digilent' };
+  }
+  if (headerStr.includes('tick') || headerStr.includes('clk')) {
+    return { format: 'Generic/Raw', type: 'raw' };
+  }
+  return { format: 'Unknown', type: 'unknown' };
+}
+
+function analyzeChannels(headers, dataLines) {
+  const channels = [];
+  
+  headers.forEach((header, index) => {
+    if (index === 0 && (header.toLowerCase().includes('time') || header.toLowerCase().includes('sample'))) {
+      return; // Skip time column
+    }
+    
+    const channelName = header.replace(/["']/g, '').trim();
+    const channelData = dataLines.slice(1, Math.min(20, dataLines.length)).map(line => {
+      const parts = line.split(',');
+      return parts[index]?.trim() || '0';
+    });
+    
+    // Detect signal patterns
+    const uniqueValues = [...new Set(channelData)];
+    const transitions = channelData.filter((val, i) => i > 0 && val !== channelData[i-1]).length;
+    
+    channels.push({
+      name: channelName,
+      index: index,
+      uniqueValues: uniqueValues.length,
+      transitions: transitions,
+      isDigital: uniqueValues.length <= 4,
+      isClock: transitions > 5,
+      isData: transitions > 0 && transitions <= 10
+    });
+  });
+  
+  return channels;
+}
+
+function detectProtocol(channels) {
+  const digitalChannels = channels.filter(c => c.isDigital);
+  
+  if (digitalChannels.length === 2) {
+    const hasClock = digitalChannels.some(c => c.isClock);
+    const hasData = digitalChannels.some(c => c.isData && !c.isClock);
+    
+    if (hasClock && hasData) {
+      return { protocol: 'I2C', confidence: 'High', pins: ['SDA (Data)', 'SCL (Clock)'] };
+    }
+  }
+  
+  if (digitalChannels.length >= 3 && digitalChannels.length <= 5) {
+    const clockLike = digitalChannels.filter(c => c.isClock).length;
+    const dataLike = digitalChannels.filter(c => c.isData).length;
+    
+    if (clockLike >= 1 && dataLike >= 2) {
+      return { protocol: 'SPI', confidence: 'High', pins: ['MOSI', 'MISO', 'SCK', 'CS/SS'] };
+    }
+  }
+  
+  if (digitalChannels.length === 1 || digitalChannels.length === 2) {
+    return { protocol: 'UART/Serial', confidence: 'Medium', pins: ['TX', 'RX'] };
+  }
+  
+  if (digitalChannels.length > 8) {
+    return { protocol: 'Parallel/Unknown', confidence: 'Low', pins: digitalChannels.map((c, i) => `Data_${i}`) };
+  }
+  
+  return { protocol: 'Unknown', confidence: 'Low', pins: digitalChannels.map((c, i) => `Channel_${i}`) };
+}
+
+// Device signature database
+const deviceSignatures = {
+  '0x77': { name: 'BME280', type: 'Temperature/Humidity/Pressure Sensor', protocol: 'I2C', address: '0x77 or 0x76' },
+  '0x68': { name: 'MPU6050', type: 'Accelerometer/Gyroscope', protocol: 'I2C', address: '0x68 or 0x69' },
+  '0x50': { name: '24Cxx EEPROM', type: 'EEPROM Memory', protocol: 'I2C', address: '0x50-0x57' },
+  '0x3C': { name: 'SSD1306', type: 'OLED Display', protocol: 'I2C', address: '0x3C or 0x3D' },
+  '0x27': { name: 'PCF8574', type: 'I/O Expander', protocol: 'I2C', address: '0x27 or 0x3F' }
+};
+
 // Enhanced mock analysis
 function getEnhancedMockAnalysis(csvContent = '') {
-  const lines = csvContent.split('\n');
-  const channelCount = lines[0]?.split(',').length - 1 || 0;
-  const hasTimeColumn = lines[0]?.includes('Time') || lines[0]?.includes('time');
+  const lines = csvContent.split('\n').filter(line => line.trim());
+  const headers = lines[0]?.split(',').map(h => h.trim()) || [];
+  const format = detectCSVFormat(headers);
+  const channels = analyzeChannels(headers, lines);
+  const protocol = detectProtocol(channels);
   
-  return `PULSEAI ANALYSIS REPORT
+  return `PULSEAI DETAILED ANALYSIS REPORT
 ==================================================
 
-FILE ANALYSIS:
-• Total lines: ${lines.length}
-• Data channels: ${channelCount}
-• Time data: ${hasTimeColumn ? 'Yes' : 'No'}
+FILE METADATA:
+• Analyzer Format: ${format.format}
+• Total Samples: ${lines.length - 1}
+• Data Channels: ${channels.length}
+• Time Column: ${headers[0] || 'None'}
 
-PROTOCOL ANALYSIS:
-• Most Likely: I2C or SPI communication
-• Channel usage: ${channelCount} active data lines
-• Pattern: Digital serial communication detected
+DETECTED PROTOCOL:
+• Protocol: ${protocol.protocol}
+• Confidence: ${protocol.confidence}
+• Type: ${format.type === 'standard' ? 'Standard Logic Analyzer' : 'Custom Format'}
+
+PIN MAPPING ANALYSIS:
+${channels.map((ch, i) => `• ${ch.name}: ${protocol.pins[i] || 'Data Line'} ${ch.isClock ? '(Clock-like)' : ''} ${ch.isData ? '(Data)' : ''}`).join('\n')}
+
+SIGNAL CHARACTERISTICS:
+${channels.map(ch => `• ${ch.name}: ${ch.transitions} transitions, ${ch.uniqueValues} unique states${ch.isDigital ? ' (Digital)' : ' (Analog/Mixed)'}`).join('\n')}
 
 ESTIMATED DEVICES:
-• Primary: Microcontroller/master device
-• Secondary: Sensor or peripheral device(s)
+• Primary: ${protocol.protocol === 'I2C' ? 'I2C Master (Microcontroller)' : protocol.protocol === 'SPI' ? 'SPI Master' : 'Unknown Master'}
+• Secondary: ${channels.length > 1 ? 'Connected peripheral(s) detected' : 'No secondary device detected'}
 
-PIN MAPPING (ESTIMATED):
-${Array.from({length: channelCount}, (_, i) => `• Channel ${i}: Data line ${i+1}`).join('\n')}
+TIMING ANALYSIS:
+• Sample Rate: Estimated from time column
+• Bus Speed: ${protocol.protocol === 'I2C' ? 'Standard (100kHz) or Fast (400kHz)' : protocol.protocol === 'SPI' ? 'Variable, check clock frequency' : 'Unknown'}
 
 RECOMMENDATIONS:
-1. Check signal timing and voltage levels
-2. Verify protocol settings match device requirements
-3. Use smaller CSV files for faster AI analysis
+1. Verify protocol settings match device datasheets
+2. Check signal integrity and voltage levels
+3. Confirm device addresses for I2C devices
+4. Review timing constraints for reliable communication
 
-NOTE: This is an enhanced analysis. For full AI analysis, the request timed out due to Render's 30-second limit on free tier. Consider:
-- Using smaller CSV files (< 1000 lines)
-- Upgrading to Render's paid plan for longer timeouts
-- Using the /api/quick-analyze endpoint for faster results`;
+NOTE: This analysis is based on signal patterns. For device-specific identification, additional signature analysis may be required.`;
 }
 
 // NEW: Quick analysis endpoint for smaller files
@@ -255,6 +387,94 @@ Respond in 3-4 bullet points about protocol and devices.`;
     
   } catch (error) {
     res.status(500).json({ error: 'Quick analysis failed', message: error.message });
+  }
+});
+
+// Authentication Routes
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+    
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+    
+    if (!MONGODB_URI) {
+      return res.status(500).json({ error: 'Database not configured' });
+    }
+    
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ error: 'User already exists' });
+    }
+    
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = new User({ name, email, password: hashedPassword });
+    await user.save();
+    
+    res.json({ message: 'User registered successfully' });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ error: 'Registration failed' });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password required' });
+    }
+    
+    if (!MONGODB_URI) {
+      const mockUser = { id: 'mock', name: 'Demo User', email };
+      const token = jwt.sign(mockUser, JWT_SECRET, { expiresIn: '24h' });
+      return res.json({ token, user: mockUser });
+    }
+    
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    const token = jwt.sign(
+      { id: user._id, name: user.name, email: user.email },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    
+    res.json({ token, user: { id: user._id, name: user.name, email: user.email } });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+// Protected route example
+app.get('/api/user/profile', authenticateToken, async (req, res) => {
+  try {
+    if (!MONGODB_URI) {
+      return res.json(req.user);
+    }
+    
+    const user = await User.findById(req.user.id).select('-password');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get profile' });
   }
 });
 

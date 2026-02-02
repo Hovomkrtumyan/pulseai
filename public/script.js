@@ -14,8 +14,90 @@ document.addEventListener('DOMContentLoaded', function() {
     const copyBtn = document.getElementById('copyBtn');
     const downloadBtn = document.getElementById('downloadBtn');
     
+    // Auth elements
+    const loginBtn = document.getElementById('loginBtn');
+    const userProfileBtn = document.getElementById('userProfileBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const userName = document.getElementById('userName');
+    
+    console.log('Auth elements found:', { 
+        loginBtn: !!loginBtn, 
+        userProfileBtn: !!userProfileBtn, 
+        logoutBtn: !!logoutBtn, 
+        userName: !!userName 
+    });
+    
     let selectedFile = null;
     let currentAnalysisResult = null;
+    let currentUser = null;
+    
+    // Check authentication status
+    checkAuthStatus();
+    
+    // Authentication functions
+    function checkAuthStatus() {
+        const token = localStorage.getItem('token');
+        const user = localStorage.getItem('user');
+        
+        console.log('Checking auth status:', { hasToken: !!token, hasUser: !!user });
+        
+        if (token && user) {
+            try {
+                currentUser = JSON.parse(user);
+                console.log('User logged in:', currentUser);
+                showUserProfile();
+            } catch (e) {
+                console.error('Error parsing user:', e);
+                window.location.href = '/login.html';
+            }
+        } else {
+            console.log('No user logged in, redirecting to login');
+            window.location.href = '/login.html';
+        }
+    }
+    
+    function showLoginButton() {
+        loginBtn.style.display = 'inline-flex';
+        userProfileBtn.style.display = 'none';
+        logoutBtn.style.display = 'none';
+    }
+    
+    function showUserProfile() {
+        console.log('Showing user profile for:', currentUser?.name || currentUser?.email);
+        if (loginBtn) loginBtn.style.display = 'none';
+        if (userProfileBtn) {
+            userProfileBtn.style.display = 'inline-flex';
+            userProfileBtn.style.visibility = 'visible';
+        }
+        if (logoutBtn) {
+            logoutBtn.style.display = 'inline-flex';
+            logoutBtn.style.visibility = 'visible';
+            console.log('Logout button should be visible now');
+        }
+        if (userName) userName.textContent = currentUser.name || currentUser.email;
+    }
+    
+    if (loginBtn) {
+        loginBtn.addEventListener('click', function() {
+            window.location.href = '/login.html';
+        });
+    }
+    
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('Logout button clicked - executing logout');
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            currentUser = null;
+            console.log('LocalStorage cleared, redirecting...');
+            window.location.href = '/login.html';
+        });
+        console.log('Logout event listener attached');
+    } else {
+        console.error('Logout button not found!');
+    }
     
     // Browse button click event
     browseBtn.addEventListener('click', function(e) {
@@ -117,7 +199,10 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const response = await fetch('/api/analyze', {
                 method: 'POST',
-                body: formData
+                body: formData,
+                headers: {
+                    'Authorization': currentUser ? `Bearer ${localStorage.getItem('token')}` : ''
+                }
             });
             
             const data = await response.json();
