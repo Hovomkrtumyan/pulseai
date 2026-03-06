@@ -9,6 +9,7 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const BASE_PATH = process.env.BASE_PATH || '';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -45,8 +46,13 @@ const User = mongoose.model('User', userSchema);
 
 // Middleware
 app.use(express.json());
-app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
+
+// Create a router for all routes under BASE_PATH
+const router = express.Router();
+
+// Serve static files under base path
+router.use(express.static(path.join(__dirname, 'public')));
 
 // Authentication Middleware
 const authenticateToken = (req, res, next) => {
@@ -87,12 +93,12 @@ const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 
 // Routes
-app.get('/', (req, res) => {
+router.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // File upload and analysis endpoint - OPTIMIZED FOR RENDER TIMEOUT
-app.post('/api/analyze', upload.single('csvFile'), async (req, res) => {
+router.post('/api/analyze', upload.single('csvFile'), async (req, res) => {
   let analysisRecord = null;
   
   try {
@@ -347,7 +353,7 @@ NOTE: This analysis is based on signal patterns. For device-specific identificat
 }
 
 // NEW: Quick analysis endpoint for smaller files
-app.post('/api/quick-analyze', upload.single('csvFile'), async (req, res) => {
+router.post('/api/quick-analyze', upload.single('csvFile'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No CSV file uploaded' });
@@ -391,7 +397,7 @@ Respond in 3-4 bullet points about protocol and devices.`;
 });
 
 // Authentication Routes
-app.post('/api/auth/register', async (req, res) => {
+router.post('/api/auth/register', async (req, res) => {
   try {
     const { name, email, password } = req.body;
     
@@ -423,7 +429,7 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-app.post('/api/auth/login', async (req, res) => {
+router.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     
@@ -461,7 +467,7 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // Protected route example
-app.get('/api/user/profile', authenticateToken, async (req, res) => {
+router.get('/api/user/profile', authenticateToken, async (req, res) => {
   try {
     if (!MONGODB_URI) {
       return res.json(req.user);
@@ -479,7 +485,7 @@ app.get('/api/user/profile', authenticateToken, async (req, res) => {
 });
 
 // Health check
-app.get('/api/health', (req, res) => {
+router.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     service: 'PulseAi',
@@ -490,7 +496,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Analytics endpoint
-app.get('/api/analytics', async (req, res) => {
+router.get('/api/analytics', async (req, res) => {
   if (!MONGODB_URI) {
     return res.json({ message: 'MongoDB not configured' });
   }
@@ -513,7 +519,7 @@ app.get('/api/analytics', async (req, res) => {
 });
 
 // Error handling
-app.use((error, req, res, next) => {
+router.use((error, req, res, next) => {
   if (error instanceof multer.MulterError) {
     if (error.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({ error: 'File too large. Maximum size is 2MB for free tier.' });
@@ -522,9 +528,20 @@ app.use((error, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
+// Mount router at BASE_PATH (or root if no BASE_PATH)
+if (BASE_PATH) {
+  app.use(BASE_PATH, router);
+  // Redirect root of BASE_PATH without trailing slash
+  app.get(BASE_PATH, (req, res) => {
+    res.redirect(BASE_PATH + '/');
+  });
+} else {
+  app.use('/', router);
+}
+
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 PulseAi Server running on port ${PORT}`);
-  console.log(`⚠️  Render Free Tier: 30-second timeout limit`);
-  console.log(`💡 Using optimized API calls (20s timeout)`);
+  console.log(`📁 Base path: ${BASE_PATH || '/'}`);
+  console.log(`� Access at: http://localhost:${PORT}${BASE_PATH || '/'}`);
 });

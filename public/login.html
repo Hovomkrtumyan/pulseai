@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - PulseAi</title>
+    <script>
+        window.BASE_PATH = window.location.pathname.replace(/\/login\.html$/, '') || '';
+    </script>
     <link rel="stylesheet" href="style.css">
     <style>
         .auth-container {
@@ -94,11 +97,17 @@
         </form>
         
         <div class="auth-footer">
-            <p>Don't have an account? <a href="register.html">Sign up</a></p>
+            <p>Don't have an account? <a id="registerLink" href="register.html">Sign up</a></p>
         </div>
     </div>
     
     <script>
+        const BASE = window.BASE_PATH || '';
+        
+        // Fix register link
+        const regLink = document.getElementById('registerLink');
+        if (regLink) regLink.href = BASE + '/register.html';
+        
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -107,7 +116,7 @@
             const errorMsg = document.getElementById('errorMessage');
             
             try {
-                const response = await fetch('/api/auth/login', {
+                const response = await fetch(BASE + '/api/auth/login', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -120,7 +129,7 @@
                 if (response.ok) {
                     localStorage.setItem('token', data.token);
                     localStorage.setItem('user', JSON.stringify(data.user));
-                    window.location.href = '/';
+                    window.location.href = BASE + '/';
                 } else {
                     errorMsg.textContent = data.error || 'Login failed';
                     errorMsg.style.display = 'block';

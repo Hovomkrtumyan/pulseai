@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
+    const BASE = window.BASE_PATH || '';
     const dropArea = document.getElementById('dropArea');
     const fileInput = document.getElementById('fileInput');
     const browseBtn = document.getElementById('browseBtn');
@@ -48,11 +49,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 showUserProfile();
             } catch (e) {
                 console.error('Error parsing user:', e);
-                window.location.href = '/login.html';
+                window.location.href = BASE + '/login.html';
             }
         } else {
             console.log('No user logged in, redirecting to login');
-            window.location.href = '/login.html';
+            window.location.href = BASE + '/login.html';
         }
     }
     
@@ -79,7 +80,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (loginBtn) {
         loginBtn.addEventListener('click', function() {
-            window.location.href = '/login.html';
+            window.location.href = BASE + '/login.html';
         });
     }
     
@@ -92,7 +93,7 @@ document.addEventListener('DOMContentLoaded', function() {
             localStorage.removeItem('user');
             currentUser = null;
             console.log('LocalStorage cleared, redirecting...');
-            window.location.href = '/login.html';
+            window.location.href = BASE + '/login.html';
         });
         console.log('Logout event listener attached');
     } else {
@@ -197,7 +198,7 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const formData = new FormData(uploadForm);
             
-            const response = await fetch('/api/analyze', {
+            const response = await fetch(BASE + '/api/analyze', {
                 method: 'POST',
                 body: formData,
                 headers: {

@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register - PulseAi</title>
+    <script>
+        window.BASE_PATH = window.location.pathname.replace(/\/register\.html$/, '') || '';
+    </script>
     <link rel="stylesheet" href="style.css">
     <style>
         .auth-container {
@@ -118,7 +121,7 @@
         </form>
         
         <div class="auth-footer">
-            <p>Already have an account? <a href="login.html">Sign in</a></p>
+            <p>Already have an account? <a id="loginLink" href="login.html">Sign in</a></p>
         </div>
     </div>
     
@@ -145,6 +148,12 @@
             }
         });
         
+        const BASE = window.BASE_PATH || '';
+        
+        // Fix login link
+        const loginLink = document.getElementById('loginLink');
+        if (loginLink) loginLink.href = BASE + '/login.html';
+        
         document.getElementById('registerForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -161,7 +170,7 @@
             }
             
             try {
-                const response = await fetch('/api/auth/register', {
+                const response = await fetch(BASE + '/api/auth/register', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -172,7 +181,7 @@
                 const data = await response.json();
                 
                 if (response.ok) {
-                    window.location.href = 'login.html?message=Registration successful';
+                    window.location.href = BASE + '/login.html?message=Registration successful';
                 } else {
                     errorMsg.textContent = data.error || 'Registration failed';
                     errorMsg.style.display = 'block';

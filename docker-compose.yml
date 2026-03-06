@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  pulseai:
+    build: .
+    container_name: pulseai
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - BASE_PATH=/PulseAi
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - MONGODB_URI=${MONGODB_URI}
+      - JWT_SECRET=${JWT_SECRET}
+    ports:
+      - "3100:3000"
+    networks:
+      - web
+
+networks:
+  web:
+    external: true
