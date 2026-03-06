@@ -15,8 +15,8 @@ services:
     ports:
       - "3100:3000"
     networks:
-      - web
+      - opti_default
 
 networks:
-  web:
+  opti_default:
     external: true
